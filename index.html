@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b1220">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Régulateur — Cahors (Mobile v0.9)</title>
+<style>
+:root{--bg:#0b1220;--panel:#0f172a;--panel2:#111827;--fg:#e6edf3;--muted:#94a3b8;--brand:#10b981;--brand2:#22c55e;--accent:#3b82f6;--border:#1f2937}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;-webkit-tap-highlight-color: transparent}
+#root{min-height:100%;display:flex;flex-direction:column}
+header{position:sticky;top:0;background:rgba(17,24,39,.9);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);z-index:10}
+.container{max-width:1100px;margin:0 auto;padding:10px}
+.row{display:flex;gap:10px;align-items:center}
+.btn{border:0;background:var(--brand);color:#fff;border-radius:14px;padding:10px 14px;cursor:pointer;font-weight:700;font-size:15px}
+.btn:active{transform:scale(.99)} .btn:hover{background:var(--brand2)}
+.btn-ghost{background:#1f2937;color:#d1d5db;border-radius:12px;padding:10px 12px;border:0;cursor:pointer}
+.btn-blue{background:var(--accent);color:#fff;border-radius:12px;padding:9px 12px;border:0;cursor:pointer}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:12px}
+.title{font-size:20px;font-weight:800}
+.muted{color:var(--muted)}
+.grid{display:grid;gap:10px}
+@media(min-width:900px){ .cols-3{grid-template-columns:2fr 1fr; grid-auto-rows: auto} }
+@media(min-width:1100px){ .cols-3{grid-template-columns:2fr 1fr} }
+.card{background:var(--panel2);border:1px solid var(--border);border-radius:16px;padding:10px}
+.pill{border-radius:999px;background:#0b1220;border:1px solid var(--border);padding:4px 8px;color:#cbd5e1;font-size:12px}
+.field{background:#0b1220;border:1px solid var(--border);border-radius:12px;padding:10px;color:#e5e7eb;width:100%;font-size:15px}
+.table{width:100%;border-collapse:collapse}.table th,.table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left}
+.kpi{background:#0b1220;border:1px solid var(--border);border-radius:12px;padding:6px 10px;display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px}
+.chip{display:inline-block;background:#0b1220;border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-size:14px;color:#cbd5e1;cursor:pointer}
+.chip.active{background:#1f2937}
+.footer{opacity:.7;margin:12px auto 28px;max-width:1100px;text-align:center}
+.nowrap{white-space:nowrap}
+.fs-btn{background:#4f46e5;color:#fff;border:0;border-radius:12px;padding:8px 12px;cursor:pointer}
+.map{background:#0a1326;border:1px solid var(--border);border-radius:18px;height:48vh;min-height:280px;position:relative;overflow:hidden}
+.map svg{width:100%;height:100%}
+.legend{position:absolute;left:8px;bottom:8px;font-size:12px;color:#cbd5e1;display:flex;gap:10px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50}
+.overlay.open{display:flex}
+/* Mobile layout tweaks */
+@media(max-width:899px){
+  .container{padding:10px}
+  .map{height:44vh}
+  header .row {flex-wrap:wrap}
+  .btn, .btn-blue, .btn-ghost{padding:10px 14px;font-size:16px}
+  .chip{padding:8px 12px;font-size:15px}
+}
+.touch-gap > *{margin:4px}
+</style>
+</head>
+<body>
+<div id="root">
+  <header>
+    <div class="container row" style="justify-content:space-between">
+      <div class="row" style="gap:10px">
+        <div style="font-size:20px">🚨</div>
+        <div class="title">Régulateur — Cahors</div>
+      </div>
+      <div class="row touch-gap">
+        <div class="kpi" id="kpi-level">Niveau 0</div>
+        <div class="kpi" id="kpi-time">🕒 06:00</div>
+        <div class="kpi" id="kpi-money">€ 0</div>
+        <button class="btn" id="btn-run">Démarrer</button>
+        <button class="fs-btn" id="btn-install" title="Installer sur l'écran d'accueil">Installer</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:10px">
+    <div class="grid cols-3">
+      <div class="panel">
+        <div class="row" style="justify-content:space-between">
+          <div>📍 Ville : <b id="city-name">Cahors</b> <span class="muted">· Mission #<span id="mission-seq">0</span> · Progression <span id="progression">0/6</span></span></div>
+        </div>
+        <div class="row" id="service-filter" style="flex-wrap:wrap;margin-top:8px"></div>
+        <div class="map" style="margin-top:10px;position:relative">
+          <svg id="map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path d="M0,70 C20,60 40,80 60,65 C80,55 90,60 100,50" fill="none" stroke="#0ea5e9" stroke-width="2" opacity="0.6"/>
+            <circle id="base-dot" cx="50" cy="85" r="2.2" fill="#f59e0b"></circle>
+            <rect x="60.2" y="38.2" width="3.6" height="3.6" fill="#ef4444" opacity="0.9"></rect>
+            <rect x="28.2" y="30.2" width="3.6" height="3.6" fill="#ef4444" opacity="0.9"></rect>
+          </svg>
+          <div class="legend">
+            <span><span class="dot" style="background:#f59e0b"></span> Base</span>
+            <span><span class="dot" style="background:#ef4444"></span> Hôpital</span>
+            <span><span class="dot" style="background:#10b981"></span> Santé</span>
+            <span><span class="dot" style="background:#f97316"></span> Feu</span>
+            <span><span class="dot" style="background:#60a5fa"></span> Police</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="title" style="font-size:18px;margin-bottom:8px">📟 Appels en cours — <span id="service-title">Santé</span></div>
+        <div class="grid" id="incidents"></div>
+      </div>
+
+      <div class="panel">
+        <div class="title" style="font-size:18px;margin-bottom:8px">🚗 Parc & Plannings</div>
+        <div class="grid" id="fleet"></div>
+        <div class="row" style="margin-top:8px">
+          <div class="btn-ghost">€ <span id="money-inline">0</span></div>
+          <button class="btn" style="margin-left:auto" id="toggle-shop">Ouvrir boutique</button>
+        </div>
+        <div id="shop" style="display:none;margin-top:8px"></div>
+      </div>
+
+      <div class="panel" style="grid-column:1/-1">
+        <div class="title" style="font-size:18px;margin-bottom:8px">📊 Historique récent</div>
+        <div class="card" style="overflow:auto">
+          <table class="table">
+            <thead><tr><th>#</th><th>Heure</th><th>Service</th><th>Gravité</th><th>Motif</th><th>Adresse</th><th>Statut</th><th>Payout</th></tr></thead>
+            <tbody id="history"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="overlay" id="call-overlay">
+    <div class="panel" style="width:min(800px,92vw);max-height:85vh;display:flex;flex-direction:column;gap:8px">
+      <div class="row" style="justify-content:space-between">
+        <div class="title" style="font-size:16px">📞 Appel en cours</div>
+        <button class="btn-ghost" id="call-close">Fermer</button>
+      </div>
+      <div class="muted" id="call-header" style="font-size:12px"></div>
+      <div class="card" style="display:flex;gap:6px;flex-wrap:wrap">
+        <div class="muted" style="font-size:12px;width:100%">Questions rapides :</div>
+        <div class="row" style="flex-wrap:wrap;gap:6px">
+          <span class="chip q">Bonjour, quelle est votre urgence.</span>
+          <span class="chip q">Pouvez-vous me donner l'adresse exacte.</span>
+          <span class="chip q">La personne est-elle consciente.</span>
+          <span class="chip q">La respiration est-elle normale ou difficile.</span>
+          <span class="chip q">Est-ce une douleur à la poitrine.</span>
+          <span class="chip q">Y a-t-il un saignement important.</span>
+          <span class="chip q">Quel âge a la personne.</span>
+          <span class="chip q">Est-ce un retour à domicile.</span>
+        </div>
+      </div>
+      <div class="card" id="call-chat" style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px"></div>
+      <div class="row">
+        <textarea id="call-input" class="field" rows="2" placeholder="Écris comme au téléphone…"></textarea>
+        <button class="btn-blue" id="call-send">Envoyer</button>
+        <button class="btn" id="call-end">Clore l'appel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer muted">Mobile v0.9 · PWA prêt : menu de navigateur → “Ajouter à l’écran d’accueil”</div>
+</div>
+
+<script>
+// Register Service Worker (PWA offline)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+// Install prompt
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('btn-install').style.display = 'inline-block';
+});
+document.getElementById('btn-install').addEventListener('click', async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+  } else {
+    alert("Ajoute depuis le menu du navigateur : ‘Ajouter à l’écran d’accueil’.");
+  }
+});
+
+// Game logic (vanilla, résumé et mobile-friendly)
+(function(){
+  const SAVE_KEY="dispatcher-cahors-v09";
+  const CITY={id:"cahors",name:"Cahors",sizeKm:7};
+  const BASE={x:50,y:85};
+  const HOSPITALS=[{id:"ch_cahors",name:"CH de Cahors",x:62,y:40},{id:"clinique_quercy",name:"Clinique du Quercy",x:30,y:32}];
+  const SERVICES=[{id:"med",label:"Santé",color:"#10b981"},{id:"fire",label:"Pompiers",color:"#f97316"},{id:"police",label:"Police",color:"#60a5fa"}];
+  const SEVERITIES=[{id:"mineur",label:"Mineur",require:["VSL","Ambulance"],payout:80,slaMin:150},{id:"urgent",label:"Urgent",require:["Ambulance"],payout:150,slaMin:120},{id:"vital",label:"Détresse vitale",require:["Ambulance","SMUR"],payout:250,slaMin:90}];
+  const VEHICLE_TYPES={VSL:{service:"med",speedKmh:40,cost:1000,wageDay:1.0,wageNight:1.2},Ambulance:{service:"med",speedKmh:58,cost:2200,wageDay:1.4,wageNight:1.6},SMUR:{service:"med",speedKmh:75,cost:4200,wageDay:1.8,wageNight:2.0},FPT:{service:"fire",speedKmh:60,cost:3000,wageDay:1.5,wageNight:1.7},BAC:{service:"police",speedKmh:80,cost:2500,wageDay:1.3,wageNight:1.5}};
+  const STREETS=[{name:"Bd Léon Gambetta",x:52,y:55},{name:"Rue Foch",x:58,y:52},{name:"Av. Jean Jaurès",x:44,y:48},{name:"Rue du Château du Roi",x:36,y:46},{name:"Rue Nationale",x:50,y:50},{name:"Place F. Mitterrand",x:54,y:47},{name:"Rue des Carmes",x:47,y:44},{name:"Quai Champollion",x:57,y:62},{name:"Allée des Acacias",x:28,y:60},{name:"Chemin de Belle Croix",x:24,y:38},{name:"Rue Victor Hugo",x:41,y:52},{name:"Rue du Collège",x:33,y:54},{name:"Rue de la République",x:63,y:45},{name:"Rue de la Barre",x:38,y:60}];
+  const CALLS={med:{mineur:["Transfert dialyse","Consultation programmée","Retour domicile"],urgent:["Chute personne âgée","Douleurs thoraciques","Détresse respiratoire modérée","AVP léger"],vital:["AVC suspect","Arrêt cardio-respiratoire","Détresse respiratoire sévère","Polytraumatisé"]},fire:{normal:["Feu de poubelle","Odeur de brûlé","Déblai/Nettoyage"],major:["Départ de feu appartement","Accident voie publique avec désincarcération"]},police:{normal:["Tapage nocturne","Différend de voisinage","Rixe légère"],urgent:["Cambriolage en cours","Agression signalée"]}};
+  const TICK_MS=1000, START_MIN=6*60;
+  let _gid=1; const newId=(p="id")=>p+"_"+(_gid++);
+  const rand=(a,b)=>Math.random()*(b-a)+a;
+  const choice=a=>a[Math.floor(Math.random()*a.length)];
+  const km=(a,b)=>{const dx=a.x-b.x,dy=a.y-b.y; const d=Math.sqrt(dx*dx+dy*dy); return (d/100)*CITY.sizeKm*1.2};
+  const eta=(distKm,speed)=>{const base=(distKm/Math.max(20,speed))*60; const k=Math.min(1,Math.max(0,distKm/CITY.sizeKm)); const factor=0.75+0.6*k; const traffic=rand(0.9,1.1); const e=Math.ceil(base*factor*traffic); return Math.max(2,Math.min(18,e));};
+  const interp=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});
+  const hLabel=min=>String(Math.floor(min/60)%24).padStart(2,'0')+":"+String(min%60).padStart(2,'0');
+
+  const state={running:false, minute:START_MIN, money:1500, reputation:50, level:0, missionsDone:0, threshold:6, nextIncrement:5, missionSeq:0, vehicles:[], incidents:[], history:[], callProfiles:{}, activeCallId:null, serviceFilter:"med", showShop:false};
+
+  try{ const raw=localStorage.getItem(SAVE_KEY); if(raw){ const s=JSON.parse(raw); Object.assign(state,s); _gid=s._gid||_gid; } }catch(e){}
+  if(state.vehicles.length===0){ state.vehicles.push(makeVeh("Ambulance")); state.vehicles.push(makeVeh("VSL")); state.vehicles.push(makeVeh("FPT")); state.vehicles.push(makeVeh("BAC")); }
+
+  function save(){ try{ const s={...state,_gid}; localStorage.setItem(SAVE_KEY, JSON.stringify(s)); }catch(e){} }
+  function isDay(h){ return h>=8 && h<20; }
+  function hasCrew(v){ const h=Math.floor(state.minute/60)%24; return isDay(h)?v.dayOn:v.nightOn; }
+
+  function makeVeh(type,pos){ const spec=VEHICLE_TYPES[type]; return { id:newId("veh"), name:`${type} ${Math.floor(rand(1,99))}`, type, service:spec.service, speedKmh:spec.speedKmh, status:"offduty", assignedIncidentId:null, phaseRemaining:0, pos:{...(pos||{x:50,y:85})}, route:{from:{x:50,y:85}, to:null, total:0, spent:0}, onScene:0, dayOn:true, nightOn:false, _justFinished:null }; }
+  function genAddr(){ const s=choice(STREETS); const num=Math.floor(rand(2,140)); return { text:`${num} ${s.name}, Cahors`, x:s.x+rand(-4,4), y:s.y+rand(-4,4) }; }
+
+  function genCall(service){
+    state.missionSeq+=1;
+    const id=newId("call");
+    let severity="mineur", label="Mineur", motif="Transfert dialyse";
+    if(service==="med"){ const sever=choice(SEVERITIES); severity=sever.id; label=sever.label; motif=choice(CALLS.med[sever.id]); }
+    else if(service==="fire"){ motif=choice(Math.random()<0.75?CALLS.fire.normal:CALLS.fire.major); label=motif.includes("appartement")?"Urgent":"Mineur"; }
+    else { motif=choice(Math.random()<0.7?CALLS.police.normal:CALLS.police.urgent); label=(motif.includes("cours")||motif.includes("Agression"))?"Urgent":"Mineur"; }
+
+    const a=genAddr();
+    const inc={ id, seq:state.missionSeq, service, severity, label, motif, createdAt:state.minute, deadline:(service==="med"?(SEVERITIES.find(s=>s.id===severity).slaMin):(label==="Urgent"?120:180)), status:"waiting", callStatus:"ringing", address:a.text, loc:{x:a.x,y:a.y}, hospitalId:null, hospitalService:"urgences", needsHospital:false, pmtId:null, needsPMT:false, isReturnHome: motif==="Retour domicile" };
+    const profile={ address:inc.address, age:Math.floor(rand(25,92)), conscious:Math.random()>0.15, breathing:Math.random()>0.2?"normale":"difficile", chestPain:inc.motif.includes("thorac"), bleeding:inc.motif.toLowerCase().includes("chute")?(Math.random()>0.5):(Math.random()>0.85) };
+    state.callProfiles[inc.id]=profile;
+    state.incidents.push(inc);
+  }
+
+  let nextSpawnAt=0;
+  function tick(){
+    if(!state.running) return;
+    state.minute+=1;
+    // wages
+    let cost=0; for(const v of state.vehicles){ if(hasCrew(v)){ const spec=VEHICLE_TYPES[v.type]; cost += (isDay(Math.floor(state.minute/60)%24)?spec.wageDay:spec.wageNight); } }
+    state.money=Math.max(0, Math.round(state.money - cost));
+    // deadlines + spawn
+    state.incidents.forEach(it=>{ it.deadline=Math.max(0,it.deadline-1); });
+    const vcount=state.vehicles.length||1;
+    const basePerHour=Math.min(10, 1.0+vcount*1.0);
+    const pPerMin=basePerHour/60;
+    const canSpawn=state.minute>=nextSpawnAt;
+    const maxActive=Math.min(10, 2+vcount);
+    if(canSpawn && state.incidents.length<maxActive && Math.random()<pPerMin){
+      const r=Math.random(); const svc=r<0.7?"med":(r<0.9?"fire":"police");
+      genCall(svc);
+      nextSpawnAt = state.minute + Math.floor(rand(2,5));
+    }
+    // timeouts
+    const remain=[]; const timed=[];
+    for(const it of state.incidents){ if(it.status==="waiting" && it.deadline===0) timed.push(it); else remain.push(it); }
+    if(timed.length){ state.history=[...timed.map(it=>({...it,status:"failed"})), ...state.history].slice(0,200); state.money=Math.max(0, state.money-50*timed.length); state.reputation=Math.max(0, state.reputation-4*timed.length);}
+    state.incidents=remain;
+
+    // vehicles
+    state.vehicles = state.vehicles.map(advanceVehicle);
+
+    // finishes
+    const doneIds = new Set(state.vehicles.filter(v=>v._justFinished).map(v=>v._justFinished));
+    if(doneIds.size){
+      const remaining=[]; const done=[]; for(const it of state.incidents){ (doneIds.has(it.id)?done:remaining).push(it); }
+      state.incidents=remaining;
+      for(const it of done){
+        let payout=100;
+        if(it.service==="med"){ const sev=SEVERITIES.find(s=>s.id===it.severity); const late=it.respondedAt?Math.max(0,it.respondedAt - it.createdAt - sev.slaMin):sev.slaMin; const factor= late>0?0.9:1.0; payout = Math.round(sev.payout*factor); }
+        else if(it.service==="fire"){ payout = it.motif.includes("appartement")?220:120; }
+        else { payout = it.label==="Urgent"?150:90; }
+        state.money += payout; state.reputation=Math.min(100, state.reputation+1);
+        state.history=[{...it,status:"completed",payout}, ...state.history].slice(0,200);
+        state.missionsDone += 1; if(state.missionsDone>=state.threshold){ state.level+=1; state.money+=600; state.threshold += (state.nextIncrement+1); state.nextIncrement+=1; }
+      }
+      state.vehicles.forEach(v=>v._justFinished=null);
+    }
+    render(); if(state.minute%3===0) save();
+  }
+
+  function advanceVehicle(v){
+    if(!hasCrew(v)) return {...v, status:"offduty", assignedIncidentId:null, phaseRemaining:0, route:{...v.route,to:null,total:0,spent:0}};
+    if(v.status==="idle"||v.status==="hold"){return v;}
+    if(v.phaseRemaining>0){ const spent=v.route.spent+1; const t=v.route.total>0?Math.min(1,spent/v.route.total):1; const pos=v.route.to?interp(v.route.from,v.route.to,t):v.pos; return {...v, phaseRemaining:v.phaseRemaining-1, route:{...v.route,spent}, pos}; }
+    if(v.status==="enroute"){ if(v.assignedIncidentId) state.incidents = state.incidents.map(it=> it.id!==v.assignedIncidentId ? it : {...it, status:"responding", respondedAt: it.respondedAt??state.minute }); const inc=state.incidents.find(i=>i.id===v.assignedIncidentId); const onScene=Math.max(5,Math.ceil({mineur:16,urgent:26,vital:36}[inc?.severity]||20)); return {...v, status:"onscene", onScene, phaseRemaining:onScene, route:{from:v.pos,to:v.pos,total:0,spent:0}}; }
+    if(v.status==="onscene"){ const inc=state.incidents.find(i=>i.id===v.assignedIncidentId); if(inc?.service!=="med"){ const back=eta(km(v.pos,{x:50,y:85}), v.speedKmh); return {...v, status:"returning", phaseRemaining:back, route:{from:v.pos,to:{x:50,y:85},total:back,spent:0}}; } if(inc?.isReturnHome){ const homePos={x:Math.min(98,Math.max(2, inc.loc.x+Math.random()*8-4)), y:Math.min(98,Math.max(2, inc.loc.y+Math.random()*8-4))}; const toHome=eta(km(v.pos, homePos), v.speedKmh); return {...v, status:"tohome", phaseRemaining:toHome, route:{from:v.pos,to:homePos,total:toHome,spent:0}}; } else { state.incidents = state.incidents.map(it=> it.id!==v.assignedIncidentId ? it : {...it, needsHospital:true, hospitalService: it.hospitalService||"urgences"}); return {...v, status:"hold"}; } }
+    if(v.status==="tohospital"){ state.incidents = state.incidents.map(it=> it.id!==v.assignedIncidentId ? it : {...it, needsPMT:true}); return {...v, status:"hold"}; }
+    if(v.status==="tohome"){ const back=eta(km(v.pos,{x:50,y:85}), v.speedKmh); return {...v, status:"returning", phaseRemaining:back, route:{from:v.pos,to:{x:50,y:85},total:back,spent:0}}; }
+    if(v.status==="returning"){ const done=v.assignedIncidentId; return {...v, status:"idle", assignedIncidentId:null, phaseRemaining:0, route:{from:v.pos,to:{x:50,y:85},total:0,spent:0}, _justFinished:done}; }
+    return v;
+  }
+
+  function availableVehicles(inc){
+    const h=Math.floor(state.minute/60)%24;
+    return state.vehicles.filter(v=>v.status==="idle" && ((h>=8&&h<20)?v.dayOn:v.nightOn) && v.service===inc.service && (inc.service!=="med" || (SEVERITIES.find(s=>s.id===inc.severity)?.require||[]).includes(v.type)));
+  }
+  function dispatchVehicle(vehId, incId){
+    const idx = state.vehicles.findIndex(v=>v.id===vehId); const v=state.vehicles[idx]; if(!v||v.status!=="idle") return;
+    const inc = state.incidents.find(i=>i.id===incId); if(!inc) return;
+    if(inc.assignedVehicleId && inc.assignedVehicleId!==v.id) return;
+    if(v.service!==inc.service) return;
+    if(inc.service==="med"){ const req=(SEVERITIES.find(s=>s.id===inc.severity)?.require)||[]; if(!req.includes(v.type)) return; }
+    const travel = eta(km(v.pos, inc.loc), v.speedKmh);
+    inc.assignedVehicleId = v.id; inc.callStatus = "handled";
+    state.vehicles[idx] = {...v, status:"enroute", assignedIncidentId:inc.id, phaseRemaining:travel, route:{from:v.pos,to:inc.loc,total:travel,spent:0}};
+    render();
+  }
+  function chooseHospital(incId, hospitalId){
+    const inc = state.incidents.find(i=>i.id===incId); if(!inc) return;
+    inc.hospitalId = hospitalId; inc.needsHospital=false;
+    const hosp = HOSPITALS.find(h=>h.id===hospitalId);
+    for(let i=0;i<state.vehicles.length;i++){
+      const v=state.vehicles[i];
+      if(v.assignedIncidentId===incId && v.status==="hold"){
+        const toH = eta(km(v.pos, hosp), v.speedKmh);
+        state.vehicles[i] = {...v, status:"tohospital", phaseRemaining:toH, route:{from:v.pos,to:hosp,total:toH,spent:0}};
+      }
+    }
+    render();
+  }
+  function chooseServiceDest(incId, svc){ const inc=state.incidents.find(i=>i.id===incId); if(!inc) return; inc.hospitalService=svc; render(); }
+  function chooseOriginHospital(incId, hid, svc="urgences"){ const inc=state.incidents.find(i=>i.id===incId); if(!inc) return; const hosp=HOSPITALS.find(h=>h.id===hid); if(!hosp) return; inc.hospitalId=hid; inc.hospitalService=svc; inc.address=`${svc.toUpperCase()} — ${hosp.name}`; render(); }
+  function chooseReturnHome(incId){
+    const inc=state.incidents.find(i=>i.id===incId); if(!inc) return;
+    inc.isReturnHome=true; inc.needsHospital=false; inc.pmtId="retour";
+    for(let i=0;i<state.vehicles.length;i++){
+      const v=state.vehicles[i];
+      if(v.assignedIncidentId===incId && v.status==="hold"){
+        const homePos={x:Math.min(98,Math.max(2, inc.loc.x+Math.random()*8-4)), y:Math.min(98,Math.max(2, inc.loc.y+Math.random()*8-4))};
+        const toHome=eta(km(v.pos, homePos), v.speedKmh);
+        state.vehicles[i]={...v,status:"tohome",phaseRemaining:toHome,route:{from:v.pos,to:homePos,total:toHome,spent:0}};
+      }
+    }
+    render();
+  }
+  function choosePMT(incId, pmtId){
+    const inc=state.incidents.find(i=>i.id===incId); if(!inc) return;
+    inc.pmtId=pmtId; inc.needsPMT=false;
+    for(let i=0;i<state.vehicles.length;i++){
+      const v=state.vehicles[i];
+      if(v.assignedIncidentId===incId && v.status==="hold"){
+        const back=eta(km(v.pos, {x:50,y:85}), v.speedKmh);
+        state.vehicles[i] = {...v, status:"returning", phaseRemaining:back, route:{from:v.pos,to:{x:50,y:85},total:back,spent:0}};
+      }
+    }
+    render();
+  }
+  function aiReply(text, inc){
+    const t=(text||"").toLowerCase(); const p=state.callProfiles[inc.id] || {};
+    if (t.includes("bonjour") || t.includes("urgence") || t.includes("allo") || t.includes("allô")) {
+      const base = `Oui bonjour. ${inc.motif}.`;
+      const addr = inc.isReturnHome ? `Je suis aux ${inc.hospitalService||"urgences"}.` : `Adresse ${p.address||inc.address}.`;
+      return `${base} ${addr}`;
+    }
+    if (t.includes("adresse") || t.includes("où") || t.includes("localisation") || t.includes("ou ")) return inc.isReturnHome ? `Aux ${inc.hospitalService||"urgences"}.` : `Au ${p.address||inc.address}.`;
+    if (t.includes("conscient") || t.includes("consciente") || t.includes("répond")) return p.conscious ? "La personne répond." : "La personne ne répond pas.";
+    if (t.includes("respire") || t.includes("respiration")) return p.breathing==="difficile" ? "La respiration est difficile." : "La respiration est normale.";
+    if ((t.includes("douleur") && t.includes("poitrine")) || t.includes("thoracique")) return p.chestPain ? "Douleur thoracique présente." : "Pas de douleur thoracique.";
+    if (t.includes("saigne") || t.includes("sang")) return p.bleeding ? "Il y a un saignement." : "Pas de saignement.";
+    if (t.includes("age") || t.includes("âge")) return `${p.age||"Âge inconnu"} ans.`;
+    if (t.includes("retour") && t.includes("domicile")) return "Retour à domicile depuis les urgences.";
+    if (t.includes("restez") || t.includes("compressions") || t.includes("position") || t.includes("lat")) return "D'accord, je le fais.";
+    return "D'accord.";
+  }
+  function adjustSeverity(inc){ const p=state.callProfiles[inc.id]; if(!p) return; if(!p.conscious || p.breathing==="difficile"){ inc.severity="urgent"; inc.label="Urgent"; } if(!p.conscious && p.breathing==="difficile"){ inc.severity="vital"; inc.label="Détresse vitale"; } if(p.chestPain && p.age>=55 && inc.severity==="mineur"){ inc.severity="urgent"; inc.label="Urgent"; } }
+  const $ = s=>document.querySelector(s);
+  function render(){
+    $("#kpi-level").textContent="Niveau "+state.level;
+    $("#kpi-time").textContent="🕒 "+hLabel(state.minute);
+    $("#kpi-money").textContent="€ "+state.money;
+    $("#mission-seq").textContent=state.missionSeq;
+    $("#progression").textContent=state.missionsDone+"/"+state.threshold;
+    $("#service-title").textContent=SERVICES.find(s=>s.id===state.serviceFilter).label;
+    $("#money-inline").textContent=state.money;
+    $("#btn-run").textContent = state.running?"Pause":"Démarrer";
+
+    // service filter
+    const sf=$("#service-filter"); sf.innerHTML="";
+    for(const s of SERVICES){
+      const span=document.createElement("span");
+      span.className="chip"+(state.serviceFilter===s.id?" active":"");
+      span.textContent=s.label; span.onclick=()=>{ state.serviceFilter=s.id; render(); };
+      sf.appendChild(span);
+    }
+
+    // map pins
+    const map=$("#map-svg"); map.querySelectorAll(".pin").forEach(n=>n.remove());
+    for(const it of state.incidents.filter(i=>i.service===state.serviceFilter)){
+      const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      c.setAttribute("cx", it.loc.x); c.setAttribute("cy", it.loc.y); c.setAttribute("r","1.9");
+      c.setAttribute("fill", it.service==="med"?"#10b981":(it.service==="fire"?"#f97316":"#60a5fa"));
+      c.classList.add("pin"); map.appendChild(c);
+    }
+    for(const v of state.vehicles.filter(v=>v.service===state.serviceFilter)){
+      const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      c.setAttribute("cx", v.pos.x); c.setAttribute("cy", v.pos.y); c.setAttribute("r","1.7");
+      c.setAttribute("fill", v.service==="med"?"#10b981":(v.service==="fire"?"#f97316":"#60a5fa"));
+      c.classList.add("pin"); map.appendChild(c);
+    }
+
+    // incidents list
+    const incDiv=$("#incidents"); incDiv.innerHTML="";
+    const filtered = state.incidents.filter(i=>i.service===state.serviceFilter);
+    if(filtered.length===0){
+      const d=document.createElement("div"); d.className="muted"; d.textContent="Aucun appel pour le moment…"; incDiv.appendChild(d);
+    }else for(const it of filtered){
+      const card=document.createElement("div"); card.className="card";
+      card.innerHTML=`<div class="row" style="justify-content:space-between">
+            <div class="row"><span class="pill">#${it.seq}</span><span class="pill">${it.label}</span></div>
+            <div class="muted nowrap">${it.address}</div>
+          </div>
+          <div class="muted" style="font-size:13px;margin-top:4px">Motif : <b style="color:#e5e7eb">${it.motif}</b> · Délai <b class="nowrap">${it.deadline} min</b></div>`;
+      // return home pickup
+      if(it.service==="med" && it.isReturnHome && !it.hospitalId){
+        const wrap=document.createElement("div"); wrap.style.marginTop="8px";
+        wrap.innerHTML=`<div class="muted" style="font-size:12px;margin-bottom:6px">Origine (pickup) — <b>Urgences</b> :</div>`;
+        const row=document.createElement("div"); row.className="row"; row.style.flexWrap="wrap";
+        for(const h of [{id:"ch_cahors",name:"CH de Cahors"},{id:"clinique_quercy",name:"Clinique du Quercy"}]){
+          const b=document.createElement("button"); b.className="btn-blue"; b.textContent=h.name; b.onclick=()=>chooseOriginHospital(it.id,h.id,"urgences"); row.appendChild(b);
+        }
+        wrap.appendChild(row); card.appendChild(wrap);
+      }
+      if(it.service==="med" && it.needsHospital){
+        const wrap=document.createElement("div"); wrap.style.marginTop="8px";
+        wrap.innerHTML=`<div class="muted" style="font-size:12px;margin-bottom:6px">Choisir la destination :</div>`;
+        const row=document.createElement("div"); row.className="row"; row.style.flexWrap="wrap";
+        for(const h of [{id:"ch_cahors",name:"CH de Cahors"},{id:"clinique_quercy",name:"Clinique du Quercy"}]){
+          const b=document.createElement("button"); b.className="btn-blue"; b.textContent=h.name; b.onclick=()=>chooseHospital(it.id,h.id); row.appendChild(b);
+        }
+        const ret=document.createElement("button"); ret.className="btn"; ret.textContent="Retour domicile"; ret.onclick=()=>chooseReturnHome(it.id);
+        row.appendChild(ret); wrap.appendChild(row);
+        const row2=document.createElement("div"); row2.className="row"; row2.style.flexWrap="wrap"; row2.style.marginTop="6px";
+        row2.innerHTML=`<span class="muted" style="font-size:12px">Service :</span>`;
+        for(const s of ["urgences","dialyse","cardio"]){
+          const chip=document.createElement("span"); chip.className="chip"+(it.hospitalService===s?" active":""); chip.textContent=s[0].toUpperCase()+s.slice(1); chip.onclick=()=>{ chooseServiceDest(it.id,s); }; row2.appendChild(chip);
+        }
+        wrap.appendChild(row2); card.appendChild(wrap);
+      }
+      if(it.service==="med" && it.needsPMT){
+        const wrap=document.createElement("div"); wrap.style.marginTop="8px";
+        wrap.innerHTML=`<div class="muted" style="font-size:12px;margin-bottom:6px">Sélectionner la PMT :</div>`;
+        const row=document.createElement("div"); row.className="row"; row.style.flexWrap="wrap";
+        const labels=["Consultation","Hospitalisation","Dialyse","Radiothérapie","Transfert inter-établissement","Retour domicile"];
+        for(const lbl of labels){
+          const id=lbl.toLowerCase().startsWith("transfert")?"transfert":lbl.toLowerCase().startsWith("retour")?"retour":(lbl.toLowerCase().startsWith("radioth")?"radioth":lbl.toLowerCase());
+          const b=document.createElement("button"); b.className="btn"; b.textContent=lbl; b.onclick=()=>choosePMT(it.id,id); row.appendChild(b);
+        }
+        wrap.appendChild(row); card.appendChild(wrap);
+      }
+      const actions=document.createElement("div"); actions.className="row"; actions.style.marginTop="8px"; actions.style.flexWrap="wrap";
+      if(it.callStatus!=="handled"){
+        const btn=document.createElement("button"); btn.className="btn-blue"; btn.textContent="📞 Répondre"; btn.onclick=()=>openCall(it.id);
+        const span=document.createElement("span"); span.className="muted"; span.style.fontSize="12px"; span.textContent="Tu poses les questions ; l'appelant donne les infos.";
+        actions.appendChild(btn); actions.appendChild(span);
+      }else{
+        const avail=availableVehicles(it);
+        if(avail.length){ for(const v of avail){ const b=document.createElement("button"); b.className="btn"; b.textContent=`Envoyer ${v.name}`; b.onclick=()=>dispatchVehicle(v.id,it.id); actions.appendChild(b);} }
+        else { const span=document.createElement("span"); span.className="muted"; span.textContent=it.assignedVehicleId?"Déjà affecté":"Aucun véhicule requis dispo"; actions.appendChild(span); }
+      }
+      card.appendChild(actions);
+      incDiv.appendChild(card);
+    }
+
+    // fleet
+    const f=$("#fleet"); f.innerHTML="";
+    for(const v of state.vehicles){
+      const card=document.createElement("div"); card.className="card";
+      card.innerHTML=`<div class="row" style="justify-content:space-between">
+          <div><b>${v.name}</b> <span class="muted">(${v.type} · ${v.speedKmh} km/h)</span></div>
+          <div class="pill">${hasCrew(v)?(v.status==="idle"?"Libre":v.status):"Hors service"} ${v.status!=="idle"&&v.phaseRemaining>0?("· "+v.phaseRemaining+" min"):""}</div>
+        </div>`;
+      const row=document.createElement("div"); row.className="row"; row.style.gap="8px"; row.style.marginTop="6px";
+      const d=document.createElement("label"); d.className="chip"; d.innerHTML=`<input type="checkbox" ${v.dayOn?"checked":""}/> Jour (08-20)`; d.querySelector("input").onchange=()=>{ v.dayOn=!v.dayOn; if(!v.dayOn) v.status="offduty"; render(); };
+      const n=document.createElement("label"); n.className="chip"; n.innerHTML=`<input type="checkbox" ${v.nightOn?"checked":""}/> Nuit (20-08)`; n.querySelector("input").onchange=()=>{ v.nightOn=!v.nightOn; if(!v.nightOn) v.status="offduty"; render(); };
+      row.appendChild(d); row.appendChild(n); card.appendChild(row); f.appendChild(card);
+    }
+
+    // shop
+    const shop=$("#shop"); shop.style.display=state.showShop?"block":"none"; shop.innerHTML="";
+    if(state.showShop){
+      for(const [type,spec] of Object.entries(VEHICLE_TYPES)){
+        const row=document.createElement("div"); row.className="card row"; row.style.justifyContent="space-between";
+        const left=document.createElement("div"); left.innerHTML=`<b>${type}</b><div class="muted" style="font-size:12px">${SERVICES.find(s=>s.id===spec.service).label} · ${spec.speedKmh} km/h</div>`;
+        const btn=document.createElement("button"); btn.className="btn"; btn.textContent= state.money<spec.cost ? "Trop cher" : `Acheter (€ ${spec.cost})`;
+        if(state.money<spec.cost) btn.disabled=true;
+        btn.onclick=()=>{ if(state.money>=spec.cost){ state.money-=spec.cost; state.vehicles.push(makeVeh(type)); render(); }};
+        row.appendChild(left); row.appendChild(btn); shop.appendChild(row);
+      }
+    }
+
+    // history
+    const tbody=$("#history"); tbody.innerHTML="";
+    for(const h of state.history.slice(0,12)){
+      const tr=document.createElement("tr");
+      tr.innerHTML=`<td>#${h.seq}</td><td>${hLabel(h.createdAt)}</td><td>${SERVICES.find(s=>s.id===h.service)?.label}</td><td>${h.label}</td><td>${h.motif||"—"}</td><td>${h.address}</td><td class="nowrap">${h.status}</td><td>${h.payout?("€ "+h.payout):"—"}</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function openCall(incId){ state.activeCallId=incId; const inc=state.incidents.find(i=>i.id===incId); $("#call-header").textContent = inc ? `Motif : ${inc.motif} · Adresse : ${inc.address}` : ""; $("#call-chat").innerHTML=""; $("#call-overlay").classList.add("open"); }
+  function closeCall(){ state.activeCallId=null; $("#call-overlay").classList.remove("open"); }
+  function sendMsg(text){
+    const inc=state.incidents.find(i=>i.id===state.activeCallId); if(!inc) return;
+    const chat=$("#call-chat");
+    const us=document.createElement("div"); us.style.cssText="max-width:85%;padding:10px 12px;border-radius:14px;margin-left:auto;background:#14532d"; us.textContent=text; chat.appendChild(us); chat.scrollTop=chat.scrollHeight;
+    setTimeout(()=>{ const reply=aiReply(text, inc); adjustSeverity(inc); const ai=document.createElement("div"); ai.style.cssText="max-width:85%;padding:10px 12px;border-radius:14px;margin-left:0;background:#0b1220;border:1px solid #1f2937"; ai.textContent=reply; chat.appendChild(ai); chat.scrollTop=chat.scrollHeight; }, 100);
+  }
+
+  // Events
+  document.getElementById('btn-run').onclick=()=>{ state.running=!state.running; render(); };
+  document.getElementById('toggle-shop').onclick=()=>{ state.showShop=!state.showShop; render(); };
+  document.getElementById('call-close').onclick=closeCall;
+  document.getElementById('call-end').onclick=()=>{ if(state.activeCallId){ const inc=state.incidents.find(i=>i.id===state.activeCallId); if(inc){ inc.callStatus="handled"; } } closeCall(); render(); };
+  document.getElementById('call-send').onclick=()=>{ const ta=document.getElementById('call-input'); const txt=(ta.value||"").trim(); if(!txt) return; sendMsg(txt); ta.value=""; };
+  document.querySelectorAll(".chip.q").forEach(el=>{ el.onclick=()=>sendMsg(el.textContent); });
+
+  render(); setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
